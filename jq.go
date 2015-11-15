@@ -97,5 +97,5 @@ func (jq *Jq) _Compile(prog string) bool {
 	compiled := C.jq_compile(jq._state, cs)
 
 	// If there was an error it will have been sent to errorChannel
-	return compiled == 0
+	return compiled != 0
 }

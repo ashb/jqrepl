@@ -9,7 +9,7 @@ func TestNewClose(t *testing.T) {
 	jq, err := New(make(chan error))
 
 	if err != nil {
-		t.Errorf("Error initializing jq_state: %q", err)
+		t.Errorf("Error initializing jq_state: %v", err)
 	}
 
 	jq.Close()
@@ -25,13 +25,13 @@ func TestCompileError(t *testing.T) {
 	jq, err := New(errs)
 
 	if err != nil {
-		t.Errorf("Error initializing jq_state: %q", err)
+		t.Errorf("Error initializing jq_state: %v", err)
 	}
 	defer jq.Close()
 
 	const program = "a b"
-	if _, err = jq.Execute(program); err != nil {
-		t.Errorf("Error was expected to be something, is nil %q", err)
+	if _, err = jq.Execute(program); err == nil {
+		t.Error("Error was expected to be not nil")
 	}
 
 	// JQ might (and currently does) report multiple errors. One of them will
