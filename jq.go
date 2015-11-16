@@ -27,6 +27,7 @@ import (
 type Jq struct {
 	_state       *C.struct_jq_state
 	errorChannel chan error
+	input        C.jv
 }
 
 // Create a new JQ object. errorChannel will be sent any "recoverable errorrs"
@@ -44,6 +45,8 @@ func New(errorChannel chan error) (*Jq, error) {
 		return nil, errors.New("jq_init returned nil -- out of memory?")
 	}
 
+	jq.input = C.jv_invalid()
+
 	jq.errorChannel = errorChannel
 
 	// Because we can't pass a function pointer to an exported Go func we have to
@@ -55,7 +58,14 @@ func New(errorChannel chan error) (*Jq, error) {
 }
 
 func (jq *Jq) Close() {
-	C.jq_teardown(&jq._state)
+	if C.jv_is_valid(jq.input) != 0 {
+		C.jv_free(jq.input)
+		jq.input = C.jv_invalid()
+	}
+	if jq._state != nil {
+		C.jq_teardown(&jq._state)
+		jq._state = nil
+	}
 }
 
 //export go_error_handler
@@ -77,13 +87,24 @@ func _ConvertError(jv C.jv) error {
 	return errors.New(C.GoString(msg))
 }
 
+func (jq *Jq) SetJsonInput(input string) error {
+	cs := C.CString(input)
+	defer C.free(unsafe.Pointer(cs))
+	val := C.jv_parse(cs)
+
+	if C.jv_is_valid(val) == 0 {
+		return _ConvertError(val)
+	}
+	jq.input = val
+	return nil
+}
+
 // Execute program against the provided input. On error will return a
 // placeholder error with the real error(s) sent to the errorChannel provided
 // to New
 func (jq *Jq) Execute(program string) (interface{}, error) {
-	C.jq_report_error(jq._state, C.jv_true())
 
-	if jq._Compile(program) != true {
+	if jq._Compile(program) == false {
 		return nil, errors.New("JQ compile errors sent to channel")
 	}
 

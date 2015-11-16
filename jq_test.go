@@ -16,6 +16,8 @@ func TestNewClose(t *testing.T) {
 	if jq._state != nil {
 		t.Error("Expected jq._state to be nil after Close")
 	}
+
+	// We should be able to safely close multiple times.
 	jq.Close()
 
 }
@@ -48,5 +50,19 @@ ForErrs:
 			t.Error("No errors, or no error contained the program string")
 			break ForErrs
 		}
+	}
+}
+
+func TestInvalidJsonInput(t *testing.T) {
+	jq, err := New(make(chan error))
+	if err != nil {
+		t.Errorf("Error initializing jq_state: %v", err)
+	}
+	defer jq.Close()
+
+	err = jq.SetJsonInput("Not json")
+
+	if err == nil {
+		t.Error("Expected an error parsing invalid JSON input but none was returned")
 	}
 }
