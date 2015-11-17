@@ -36,3 +36,36 @@ func JvKindName(jv C.jv) string {
 	name := C.jv_kind_name(C.jv_get_kind(jv))
 	return C.GoString(name)
 }
+
+func JvStringValue(jv C.jv) string {
+	cs := C.jv_string_value(jv)
+	// Don't free cs - freed when the jv is
+	return C.GoString(cs)
+}
+
+func JvToGoVal(jv C.jv) interface{} {
+	switch C.jv_get_kind(jv) {
+	case C.JV_KIND_NULL:
+		return nil
+	case C.JV_KIND_FALSE:
+		return false
+	case C.JV_KIND_TRUE:
+		return true
+	case C.JV_KIND_NUMBER:
+		dbl := C.jv_number_value(jv)
+
+		if C.jv_is_integer(jv) == 0 {
+			return float64(dbl)
+		} else {
+			return int(dbl)
+		}
+	case C.JV_KIND_STRING:
+		return JvStringValue(jv)
+	case C.JV_KIND_ARRAY:
+		return nil
+	case C.JV_KIND_OBJECT:
+		return nil
+	default:
+		return nil
+	}
+}

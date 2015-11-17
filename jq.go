@@ -20,6 +20,7 @@ void install_jq_error_cb(jq_state *jq, void* go_jq);
 import "C"
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -64,6 +65,7 @@ func (jq *Jq) Close() {
 	}
 	if jq._state != nil {
 		C.jq_teardown(&jq._state)
+		close(jq.errorChannel)
 		jq._state = nil
 	}
 }
@@ -108,15 +110,43 @@ func (jq *Jq) Execute(program string) (interface{}, error) {
 		return nil, errors.New("JQ compile errors sent to channel")
 	}
 
-	return nil, nil
+	if C.jv_is_valid(jq.input) == 0 {
+		return nil, errors.New("SetJsonInput must be called before calling Execute")
+	}
+
+	// TODO: Make this use channels, as JQ by defualt deals with multiple JSON
+	// documents as input and filters each in turn.
+
+	flags := C.int(0)
+
+	C.jq_start(jq._state, C.jv_copy(jq.input), flags)
+	result := C.jq_next(jq._state)
+
+	if C.jv_is_valid(result) == 1 {
+		defer C.jv_free(result)
+		return JvToGoVal(result), nil
+	} else {
+		msg := C.jv_invalid_get_msg(C.jv_copy(result))
+		//input_pos := C.jq_util_input_get_position(jq)
+		if JvGetKind(msg) == JV_KIND_STRING {
+			defer C.jv_free(msg)
+			return nil, errors.New(JvStringValue(msg))
+		} else {
+			msg = C.jv_dump_string(msg, 0)
+			defer C.jv_free(msg)
+			return nil, errors.New(fmt.Sprintf("(not a string): %s", JvStringValue(msg)))
+		}
+		//jv_free(input_pos)
+	}
+
+	//return nil, nil
 }
 
 func (jq *Jq) _Compile(prog string) bool {
 	cs := C.CString(prog)
 	defer C.free(unsafe.Pointer(cs))
 
-	compiled := C.jq_compile(jq._state, cs)
-
+	compiled := C.jq_compile(jq._state, cs) != 0
 	// If there was an error it will have been sent to errorChannel
-	return compiled != 0
+	return compiled
 }

@@ -66,3 +66,34 @@ func TestInvalidJsonInput(t *testing.T) {
 		t.Error("Expected an error parsing invalid JSON input but none was returned")
 	}
 }
+
+func TestSimpleProgram(t *testing.T) {
+	errs := make(chan error)
+	jq, err := New(errs)
+
+	if err != nil {
+		t.Errorf("Error initializing jq_state: %v", err)
+	}
+	defer jq.Close()
+
+	go func() {
+		// We shouldn't see any errors reported. If we do it's an error
+		for err := range errs {
+			t.Errorf("Expected no errors, but got %#v", err)
+		}
+	}()
+
+	err = jq.SetJsonInput("{\"a\": 123}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	res, err := jq.Execute(".a")
+
+	if err != nil {
+		t.Errorf("%#v", err)
+	} else if res != 123 {
+		t.Errorf("Got %#v, expected %#v", res, 123)
+	}
+
+}
