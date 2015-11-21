@@ -1,21 +1,20 @@
-package jq
+package jq_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/ashb/jq-repl/jq"
 )
 
 func TestNewClose(t *testing.T) {
-	jq, err := New(make(chan error))
+	jq, err := jq.New(make(chan error))
 
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
 	}
 
 	jq.Close()
-	if jq._state != nil {
-		t.Error("Expected jq._state to be nil after Close")
-	}
 
 	// We should be able to safely close multiple times.
 	jq.Close()
@@ -24,7 +23,7 @@ func TestNewClose(t *testing.T) {
 
 func TestCompileError(t *testing.T) {
 	errs := make(chan error, 100)
-	jq, err := New(errs)
+	jq, err := jq.New(errs)
 
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
@@ -54,7 +53,7 @@ ForErrs:
 }
 
 func TestInvalidJsonInput(t *testing.T) {
-	jq, err := New(make(chan error))
+	jq, err := jq.New(make(chan error))
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
 	}
@@ -69,7 +68,7 @@ func TestInvalidJsonInput(t *testing.T) {
 
 func TestSimpleProgram(t *testing.T) {
 	errs := make(chan error)
-	jq, err := New(errs)
+	jq, err := jq.New(errs)
 
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
