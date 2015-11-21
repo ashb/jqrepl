@@ -1,4 +1,4 @@
-package jqrepl
+package jq
 
 /*
 To install
@@ -7,8 +7,8 @@ $ make install-libLTLIBRARIES install-includeHEADERS
 */
 
 /*
-#cgo CFLAGS: -I ${SRCDIR}/jq-1.5/BUILD/include
-#cgo LDFLAGS: ${SRCDIR}/jq-1.5/BUILD/lib/libjq.a
+#cgo CFLAGS: -I ${SRCDIR}/../jq-1.5/BUILD/include
+#cgo LDFLAGS: ${SRCDIR}/../jq-1.5/BUILD/lib/libjq.a
 
 #include <jq.h>
 #include <jv.h>

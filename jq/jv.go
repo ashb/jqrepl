@@ -1,8 +1,8 @@
-package jqrepl
+package jq
 
 /*
-#cgo CFLAGS: -I ${SRCDIR}/jq-1.5/BUILD/include
-#cgo LDFLAGS: ${SRCDIR}/jq-1.5/BUILD/lib/libjq.a
+#cgo CFLAGS: -I ${SRCDIR}/../jq-1.5/BUILD/include
+#cgo LDFLAGS: ${SRCDIR}/../jq-1.5/BUILD/lib/libjq.a
 
 #include <jv.h>
 */

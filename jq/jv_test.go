@@ -1,4 +1,4 @@
-package jqrepl
+package jq
 
 import "testing"
 
