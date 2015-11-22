@@ -28,7 +28,7 @@ import (
 type Jq struct {
 	_state       *C.struct_jq_state
 	errorChannel chan error
-	input        C.jv
+	input        *Jv
 }
 
 // Create a new JQ object. errorChannel will be sent any "recoverable errorrs"
@@ -46,8 +46,6 @@ func New(errorChannel chan error) (*Jq, error) {
 		return nil, errors.New("jq_init returned nil -- out of memory?")
 	}
 
-	jq.input = C.jv_invalid()
-
 	jq.errorChannel = errorChannel
 
 	// Because we can't pass a function pointer to an exported Go func we have to
@@ -59,9 +57,9 @@ func New(errorChannel chan error) (*Jq, error) {
 }
 
 func (jq *Jq) Close() {
-	if C.jv_is_valid(jq.input) != 0 {
-		C.jv_free(jq.input)
-		jq.input = C.jv_invalid()
+	if jq.input != nil {
+		jq.input.Free()
+		jq.input = nil
 	}
 	if jq._state != nil {
 		C.jq_teardown(&jq._state)
@@ -77,40 +75,26 @@ func go_error_handler(data unsafe.Pointer, jv C.jv) {
 	jq.errorChannel <- _ConvertError(jv)
 }
 
-// Covert a JQ error stored in a JV error to a go error
-func _ConvertError(jv C.jv) error {
-	// We might want to not call this as it prefixes things with "jq: "
-	jv = C.jq_format_error(jv)
-	defer C.jv_free(jv)
-
-	// Don't C.free this -- it's managed by JQ
-	msg := C.jv_string_value(jv)
-
-	return errors.New(C.GoString(msg))
-}
-
 func (jq *Jq) SetJsonInput(input string) error {
-	cs := C.CString(input)
-	defer C.free(unsafe.Pointer(cs))
-	val := C.jv_parse(cs)
-
-	if C.jv_is_valid(val) == 0 {
-		return _ConvertError(val)
+	if jq.input != nil {
+		jq.input.Free()
 	}
-	jq.input = val
-	return nil
+
+	var err error
+	jq.input, err = JvFromJsonString(input)
+	return err
 }
 
 // Execute program against the provided input. On error will return a
 // placeholder error with the real error(s) sent to the errorChannel provided
-// to New
-func (jq *Jq) Execute(program string) (interface{}, error) {
+// to New. Caller is responsible for freeing the result
+func (jq *Jq) Execute(program string) (*Jv, error) {
 
 	if jq._Compile(program) == false {
 		return nil, errors.New("JQ compile errors sent to channel")
 	}
 
-	if C.jv_is_valid(jq.input) == 0 {
+	if jq.input == nil {
 		return nil, errors.New("SetJsonInput must be called before calling Execute")
 	}
 
@@ -119,27 +103,26 @@ func (jq *Jq) Execute(program string) (interface{}, error) {
 
 	flags := C.int(0)
 
-	C.jq_start(jq._state, C.jv_copy(jq.input), flags)
-	result := C.jq_next(jq._state)
+	C.jq_start(jq._state, C.jv_copy(jq.input.jv), flags)
+	result := &Jv{C.jq_next(jq._state)}
 
-	if C.jv_is_valid(result) == 1 {
-		defer C.jv_free(result)
-		return JvToGoVal(result), nil
+	if C.jv_is_valid(result.jv) == 1 {
+		return result, nil
 	} else {
-		msg := C.jv_invalid_get_msg(C.jv_copy(result))
+		// TODO: Why am I copying here
+		msg := &Jv{C.jv_invalid_get_msg(C.jv_copy(result.jv))}
+
 		//input_pos := C.jq_util_input_get_position(jq)
-		if JvGetKind(msg) == JV_KIND_STRING {
-			defer C.jv_free(msg)
-			return nil, errors.New(JvStringValue(msg))
+		if msg.Kind() == JV_KIND_STRING {
+			defer msg.Free()
+			return nil, errors.New(msg._string())
 		} else {
-			msg = C.jv_dump_string(msg, 0)
-			defer C.jv_free(msg)
-			return nil, errors.New(fmt.Sprintf("(not a string): %s", JvStringValue(msg)))
+			msg := &Jv{C.jv_dump_string(msg.jv, 0)}
+			defer msg.Free()
+			return nil, fmt.Errorf("(not a string): %s", msg._string())
 		}
 		//jv_free(input_pos)
 	}
-
-	//return nil, nil
 }
 
 func (jq *Jq) _Compile(prog string) bool {

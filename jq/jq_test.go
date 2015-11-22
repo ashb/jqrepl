@@ -7,7 +7,7 @@ import (
 	"github.com/ashb/jq-repl/jq"
 )
 
-func TestNewClose(t *testing.T) {
+func TestJqNewClose(t *testing.T) {
 	jq, err := jq.New(make(chan error))
 
 	if err != nil {
@@ -21,7 +21,7 @@ func TestNewClose(t *testing.T) {
 
 }
 
-func TestCompileError(t *testing.T) {
+func TestJqCompileError(t *testing.T) {
 	errs := make(chan error, 100)
 	jq, err := jq.New(errs)
 
@@ -52,7 +52,7 @@ ForErrs:
 	}
 }
 
-func TestInvalidJsonInput(t *testing.T) {
+func TestJqInvalidJsonInput(t *testing.T) {
 	jq, err := jq.New(make(chan error))
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
@@ -66,7 +66,7 @@ func TestInvalidJsonInput(t *testing.T) {
 	}
 }
 
-func TestSimpleProgram(t *testing.T) {
+func TestJqSimpleProgram(t *testing.T) {
 	errs := make(chan error)
 	jq, err := jq.New(errs)
 
@@ -91,8 +91,8 @@ func TestSimpleProgram(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("%#v", err)
-	} else if res != 123 {
-		t.Errorf("Got %#v, expected %#v", res, 123)
+	} else if val := res.ToGoVal(); val != 123 {
+		t.Errorf("Got %#v, expected %#v", val, 123)
 	}
 
 }
