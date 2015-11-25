@@ -33,10 +33,11 @@ James: this is all your fault for egging me on)
 
 ## Does it work?
 
-**No**, not yet. I'm work on it slowly.
+**No**, not yet. I'm working on it slowly.
 
- am using this project as excuse and reason to learn Go so it will take me a
-while to get it functional and bug free.
+I am using this project as excuse and reason to learn Go so it will take me a
+while to get it functional and bug free. And then even longer so that other
+pepole can use it.
 
 ## What might it look like?
 
@@ -121,6 +122,7 @@ cd jq-1.5
 ./configure --disable-maintainer-mode --prefix=$PWD/BUILD
 # We could run `make install` but we only actually need these components.
 make install-libLTLIBRARIES install-includeHEADERS
+go test ./...
 ```
 
 I have no idea if this will work on platforms other than OSX right now. I will
