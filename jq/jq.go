@@ -20,7 +20,6 @@ void install_jq_error_cb(jq_state *jq, void* go_jq);
 import "C"
 import (
 	"errors"
-	"fmt"
 	"unsafe"
 )
 
@@ -28,13 +27,12 @@ import (
 type Jq struct {
 	_state       *C.struct_jq_state
 	errorChannel chan error
-	input        *Jv
 }
 
 // Create a new JQ object. errorChannel will be sent any "recoverable errorrs"
 // - i.e. ones caused by invalid input or invalid programs, but not out of
 // memory situations
-func New(errorChannel chan error) (*Jq, error) {
+func New() (*Jq, error) {
 	jq := new(Jq)
 
 	var err error
@@ -46,82 +44,103 @@ func New(errorChannel chan error) (*Jq, error) {
 		return nil, errors.New("jq_init returned nil -- out of memory?")
 	}
 
-	jq.errorChannel = errorChannel
-
-	// Because we can't pass a function pointer to an exported Go func we have to
-	// call a C function which uses the exported fund for us.
-	// https://github.com/golang/go/wiki/cgo#function-variables
-	C.install_jq_error_cb(jq._state, unsafe.Pointer(jq))
-
 	return jq, nil
 }
 
 func (jq *Jq) Close() {
-	if jq.input != nil {
-		jq.input.Free()
-		jq.input = nil
-	}
 	if jq._state != nil {
 		C.jq_teardown(&jq._state)
-		close(jq.errorChannel)
 		jq._state = nil
 	}
 }
 
 //export go_error_handler
 func go_error_handler(data unsafe.Pointer, jv C.jv) {
-	jq := (*Jq)(data)
+	ch := *(*chan<- error)(data)
 
-	jq.errorChannel <- _ConvertError(jv)
+	err := _ConvertError(jv)
+	ch <- err
 }
 
-func (jq *Jq) SetJsonInput(input string) error {
-	if jq.input != nil {
-		jq.input.Free()
-	}
+// Start will compile `program` and return a three channels: input, output and
+// error. Sending a jq.Jv* to input cause the program to be run to it and
+// results returned as jq.Jv* on the output channel, or one or more error
+// values sent to the error channel. When you are done sending values close the
+// input channel.
+//
+// This function is not reentereant -- in that you cannot and should not call
+// Start again until you have closed the previous input channel.
+//
+// If there is a problem compiling the JQ program then the errors will be
+// reported on error channel before any input is read so makle sure you account
+// for this case.
+//
+// Any jq.Jv* values passed to the input channel will be owned by the channel.
+// If you want to keep them afterwards ensure you Copy() them before passing to
+// the channel
+func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan error) {
 
-	var err error
-	jq.input, err = JvFromJsonString(input)
-	return err
+	// Create out two way copy of the channels. We need to be able to recv from
+	// input, so need to store the original channel
+	cIn := make(chan *Jv)
+	cOut := make(chan *Jv)
+	cErr := make(chan error)
+
+	// And assign the read/write only versions to the output fars
+	in = cIn
+	out = cOut
+	errs = cErr
+
+	// Because we can't pass a function pointer to an exported Go func we have to
+	// call a C function which uses the exported fund for us.
+	// https://github.com/golang/go/wiki/cgo#function-variables
+	C.install_jq_error_cb(jq._state, unsafe.Pointer(&cErr))
+
+	go func() {
+		if jq._Compile(program) == false {
+			// Even if compile failed follow the contract. Read any inputs and take
+			// ownership of them (aka free them)
+			//
+			// Errors from compile will be sent to the error channel
+			for jv := range cIn {
+				jv.Free()
+			}
+		} else {
+			for jv := range cIn {
+				jq._Execute(jv, cOut, jq.errorChannel)
+			}
+		}
+		// Once we've read all the inputs close the output to signal to caller that
+		// we are done.
+		close(cOut)
+		close(cErr)
+		C.install_jq_error_cb(jq._state, nil)
+	}()
+
+	return
 }
 
-// Execute program against the provided input. On error will return a
-// placeholder error with the real error(s) sent to the errorChannel provided
-// to New. Caller is responsible for freeing the result
-func (jq *Jq) Execute(program string) (*Jv, error) {
-
-	if jq._Compile(program) == false {
-		return nil, errors.New("JQ compile errors sent to channel")
-	}
-
-	if jq.input == nil {
-		return nil, errors.New("SetJsonInput must be called before calling Execute")
-	}
-
-	// TODO: Make this use channels, as JQ by defualt deals with multiple JSON
-	// documents as input and filters each in turn.
-
+// Process a single input and send the results on `out`
+func (jq *Jq) _Execute(jv *Jv, out chan<- *Jv, err chan<- error) {
 	flags := C.int(0)
 
-	C.jq_start(jq._state, C.jv_copy(jq.input.jv), flags)
+	C.jq_start(jq._state, jv.jv, flags)
 	result := &Jv{C.jq_next(jq._state)}
-
-	if C.jv_is_valid(result.jv) == 1 {
-		return result, nil
-	} else {
-		// TODO: Why am I copying here
-		msg := &Jv{C.jv_invalid_get_msg(C.jv_copy(result.jv))}
-
-		//input_pos := C.jq_util_input_get_position(jq)
+	for result.IsValid() {
+		out <- result
+		result = &Jv{C.jq_next(jq._state)}
+	}
+	if msg := result.GetInvalidMessage(); msg.Kind() != JV_KIND_NULL {
+		// Uncaught jq exception
+		// TODO: get file:line position in input somehow.
 		if msg.Kind() == JV_KIND_STRING {
 			defer msg.Free()
-			return nil, errors.New(msg._string())
+			err <- errors.New(msg._string())
 		} else {
-			msg := &Jv{C.jv_dump_string(msg.jv, 0)}
+			msg := Jv{C.jv_dump_string(msg.jv, 0)}
 			defer msg.Free()
-			return nil, fmt.Errorf("(not a string): %s", msg._string())
+			err <- errors.New(msg._string())
 		}
-		//jv_free(input_pos)
 	}
 }
 

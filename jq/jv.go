@@ -112,6 +112,22 @@ func (jv *Jv) Kind() JvKind {
 	return JvKind(C.jv_get_kind(jv.jv))
 }
 
+func (jv *Jv) Copy() *Jv {
+	C.jv_copy(jv.jv)
+	// Becasue jv uses ref counting under the hood we can return the same value
+	return jv
+}
+
+func (jv *Jv) IsValid() bool {
+	return C.jv_is_valid(jv.jv) != 0
+}
+
+// GetInvalidMessage gets the error message for this Jv. If there is none it
+// will return a jv NULL value (not a go nil value)
+func (jv *Jv) GetInvalidMessage() *Jv {
+	return &Jv{C.jv_invalid_get_msg(jv.jv)}
+}
+
 func (jv *Jv) _string() string {
 	// Raw string value. If called on
 	cs := C.jv_string_value(jv.jv)
