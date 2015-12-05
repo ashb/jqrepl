@@ -53,15 +53,15 @@ func TestJvStringOnNonStringType(t *testing.T) {
 	is.Err(err)
 }
 
-func TestJvFromJsonString(t *testing.T) {
+func TestJvFromJSONString(t *testing.T) {
 	is := is.New(t)
 
-	jv, err := jq.JvFromJsonString("[]")
+	jv, err := jq.JvFromJSONString("[]")
 	is.NoErr(err)
 	is.OK(jv)
 	is.Equal(jv.Kind(), jq.JV_KIND_ARRAY)
 
-	jv, err = jq.JvFromJsonString("not valid")
+	jv, err = jq.JvFromJSONString("not valid")
 	is.Err(err)
 	is.Nil(jv)
 }

@@ -1,3 +1,12 @@
+// Package jq provides go bindings for libjq providing a streaming filter of
+// JSON documents.
+//
+// This package provides a thin layer on top of stedolan's libjq -- it would
+// likely be helpful to read through the wiki pages about it:
+//
+// jv: the JSON value type https://github.com/stedolan/jq/wiki/C-API:-jv
+//
+// libjq: https://github.com/stedolan/jq/wiki/C-API:-libjq
 package jq
 
 /*
@@ -23,15 +32,13 @@ import (
 	"unsafe"
 )
 
-// The object representing the complete JQ state.
+// Jq encapsulates the state needed to interface with the libjq C library
 type Jq struct {
 	_state       *C.struct_jq_state
 	errorChannel chan error
 }
 
-// Create a new JQ object. errorChannel will be sent any "recoverable errorrs"
-// - i.e. ones caused by invalid input or invalid programs, but not out of
-// memory situations
+// New initializes a new JQ object and the underlying C library.
 func New() (*Jq, error) {
 	jq := new(Jq)
 
@@ -47,6 +54,7 @@ func New() (*Jq, error) {
 	return jq, nil
 }
 
+// Close the handle to libjq and free C resources
 func (jq *Jq) Close() {
 	if jq._state != nil {
 		C.jq_teardown(&jq._state)
@@ -54,8 +62,8 @@ func (jq *Jq) Close() {
 	}
 }
 
-//export go_error_handler
-func go_error_handler(data unsafe.Pointer, jv C.jv) {
+//export goLibjqErrorHandler
+func goLibjqErrorHandler(data unsafe.Pointer, jv C.jv) {
 	ch := *(*chan<- error)(data)
 
 	err := _ConvertError(jv)
@@ -64,9 +72,9 @@ func go_error_handler(data unsafe.Pointer, jv C.jv) {
 
 // Start will compile `program` and return a three channels: input, output and
 // error. Sending a jq.Jv* to input cause the program to be run to it and
-// results returned as jq.Jv* on the output channel, or one or more error
-// values sent to the error channel. When you are done sending values close the
-// input channel.
+// one-or-more results returned as jq.Jv* on the output channel, or one or more
+// error values sent to the error channel. When you are done sending values
+// close the input channel.
 //
 // This function is not reentereant -- in that you cannot and should not call
 // Start again until you have closed the previous input channel.

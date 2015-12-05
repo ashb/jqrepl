@@ -38,16 +38,16 @@ func TestJqCompileError(t *testing.T) {
 	// contain our input program. Check for that but don't be overly-specific
 	// about the string or order of errors
 
-	got_errors := false
+	gotErrors := false
 	for err := range errs {
-		got_errors = true
+		gotErrors = true
 		if strings.Contains(err.Error(), program) {
 			// t.Pass("Found the error we expected: %#v\n",
 			return
 		}
 	}
 
-	if !got_errors {
+	if !gotErrors {
 		t.Fatal("Errors were expected but none seen")
 	}
 	t.Fatal("No error containing the program source found")
@@ -61,7 +61,7 @@ func TestJqSimpleProgram(t *testing.T) {
 	}
 	defer state.Close()
 
-	input, err := jq.JvFromJsonString("{\"a\": 123}")
+	input, err := jq.JvFromJSONString("{\"a\": 123}")
 	if err != nil {
 		t.Error(err)
 	}
@@ -76,8 +76,8 @@ func TestJqSimpleProgram(t *testing.T) {
 		}
 	}()
 
-	get_all_outputs := func(out <-chan *jq.Jv) []*jq.Jv {
-		outputs := make([]*jq.Jv, 0)
+	getAllOutputs := func(out <-chan *jq.Jv) []*jq.Jv {
+		var outputs []*jq.Jv
 		for jv := range out {
 			outputs = append(outputs, jv)
 		}
@@ -87,7 +87,7 @@ func TestJqSimpleProgram(t *testing.T) {
 	in <- input
 	close(in)
 
-	outputs := get_all_outputs(out)
+	outputs := getAllOutputs(out)
 
 	if l := len(outputs); l != 1 {
 		t.Errorf("Got %d outputs (%#v), expected %d", l, outputs, 1)

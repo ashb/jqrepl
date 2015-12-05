@@ -19,10 +19,17 @@ import (
 // Helper functions for dealing with JV objects. You can't use this from
 // another go package as the cgo types are 'unique' per go package
 
-// JvKind represents the type of value a Jv contains
+// JvKind represents the type of value that a `Jv` contains.
 type JvKind int
 
-// Jv represents a JSON value from libjq
+// Jv represents a JSON value from libjq.
+//
+// The go wrapper uses the same memory management semantics as the underlying C
+// library, so you should familiarize yourself with
+// https://github.com/stedolan/jq/wiki/C-API:-jv#memory-management. In summary
+// this package and all JQ functions operate on the assumption that any jv value
+// you pass to a function is then owned by that function -- if you do not wish
+// this to be the case call Copy() on it first.
 type Jv struct {
 	jv C.jv
 }
@@ -38,7 +45,7 @@ const (
 	JV_KIND_OBJECT  JvKind = C.JV_KIND_OBJECT
 )
 
-// KindName returns a string representation
+// String returns a string representation of what type this Jv contains
 func (kind JvKind) String() string {
 	// Rather than rely on converting from a C string to go every time, store our
 	// own list
@@ -77,7 +84,7 @@ func JvFromString(str string) *Jv {
 	return &Jv{C.jv_string_sized(cs, C.int(len(str)))}
 }
 
-// Covert a JQ error stored in a JV error to a go error
+// Covert a JQ error stored in a JV error to a native go error
 func _ConvertError(inv C.jv) error {
 	// We might want to not call this as it prefixes things with "jq: "
 	jv := &Jv{C.jq_format_error(inv)}
@@ -86,9 +93,9 @@ func _ConvertError(inv C.jv) error {
 	return errors.New(jv._string())
 }
 
-// JvFromJsonString takes a JSON string and returns the jv representation of
+// JvFromJSONString takes a JSON string and returns the jv representation of
 // it.
-func JvFromJsonString(str string) (*Jv, error) {
+func JvFromJSONString(str string) (*Jv, error) {
 	cs := C.CString(str)
 	defer C.free(unsafe.Pointer(cs))
 	jv := C.jv_parse(cs)
@@ -99,31 +106,44 @@ func JvFromJsonString(str string) (*Jv, error) {
 	return &Jv{jv}, nil
 }
 
-// Free this reference to a Jv value. Don't call this more than once per jv -
-// might not actually free the memory as libjq uses reference counting. To make
-// this more like the libjq interface we return a nil pointer.
+// Free this reference to a Jv value.
+//
+// Don't call this more than once per jv - might not actually free the memory
+// as libjq uses reference counting. To make this more like the libjq interface
+// we return a nil pointer.
 func (jv *Jv) Free() *Jv {
 	C.jv_free(jv.jv)
 	return nil
 }
 
 // Kind returns a JvKind saying what type this jv contains.
+//
+// Does not consume the invocant.
 func (jv *Jv) Kind() JvKind {
 	return JvKind(C.jv_get_kind(jv.jv))
 }
 
+// Copy returns a *Jv so that the original won't get freed.
+//
+// Does not consume the invocant.
 func (jv *Jv) Copy() *Jv {
 	C.jv_copy(jv.jv)
 	// Becasue jv uses ref counting under the hood we can return the same value
 	return jv
 }
 
+// IsValid returns true if this Jv represents a valid JSON type, or false if it
+// is unitiaizlied or if it represents an error type
+//
+// Does not consume the invocant.
 func (jv *Jv) IsValid() bool {
 	return C.jv_is_valid(jv.jv) != 0
 }
 
 // GetInvalidMessage gets the error message for this Jv. If there is none it
-// will return a jv NULL value (not a go nil value)
+// will return a jv NULL value (not a go nil value).
+//
+// Consumes the invocant.
 func (jv *Jv) GetInvalidMessage() *Jv {
 	return &Jv{C.jv_invalid_get_msg(jv.jv)}
 }
@@ -136,6 +156,8 @@ func (jv *Jv) _string() string {
 }
 
 // If jv is a string, return its value. Will not stringify other types
+//
+// Does not consume the invocant.
 func (jv *Jv) String() (string, error) {
 	// Doing this might be a bad idea as it means we almost implement the Stringer
 	// interface but not quite (cos the error type)
@@ -149,6 +171,8 @@ func (jv *Jv) String() (string, error) {
 }
 
 // ToGoVal converts a jv into it's closest Go approximation
+//
+// Does not consume the invocant.
 func (jv *Jv) ToGoVal() interface{} {
 	switch kind := C.jv_get_kind(jv.jv); kind {
 	case C.JV_KIND_NULL:
