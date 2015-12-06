@@ -21,25 +21,54 @@ func TestJqNewClose(t *testing.T) {
 
 }
 
+func feedJq(val *jq.Jv, in chan<- *jq.Jv, out <-chan *jq.Jv, errs <-chan error) ([]*jq.Jv, []error) {
+	if val == nil {
+		close(in)
+		in = nil
+	}
+	outputs := make([]*jq.Jv, 0)
+	errors := make([]error, 0)
+	for errs != nil && out != nil {
+		select {
+		case e, ok := <-errs:
+			if !ok {
+				errs = nil
+			} else {
+				errors = append(errors, e)
+			}
+		case o, ok := <-out:
+			if !ok {
+				out = nil
+			} else {
+				outputs = append(outputs, o)
+			}
+		case in <- val:
+			// We've sent our input, close the channel to tell Jq we're done
+			close(in)
+			in = nil
+		}
+	}
+	return outputs, errors
+}
+
 func TestJqCompileError(t *testing.T) {
-	jq, err := jq.New()
+	state, err := jq.New()
 
 	if err != nil {
 		t.Errorf("Error initializing jq_state: %v", err)
 	}
-	defer jq.Close()
+	defer state.Close()
 
 	const program = "a b"
-	in, _, errs := jq.Start(program)
-	// We aren't sending any input this time.
-	close(in)
+	cIn, cOut, cErr := state.Start(program)
+	_, errors := feedJq(nil, cIn, cOut, cErr)
 
 	// JQ might (and currently does) report multiple errors. One of them will
 	// contain our input program. Check for that but don't be overly-specific
 	// about the string or order of errors
 
 	gotErrors := false
-	for err := range errs {
+	for _, err := range errors {
 		gotErrors = true
 		if strings.Contains(err.Error(), program) {
 			// t.Pass("Found the error we expected: %#v\n",
@@ -66,33 +95,37 @@ func TestJqSimpleProgram(t *testing.T) {
 		t.Error(err)
 	}
 
-	in, out, errs := state.Start(".a")
+	cIn, cOut, cErrs := state.Start(".a")
+	outputs, errs := feedJq(input, cIn, cOut, cErrs)
 
-	go func() {
-		// We shouldn't see any errors reported. If we do it's an error
-		for err := range errs {
-			close(in)
-			t.Errorf("Expected no errors, but got %#v", err)
-		}
-	}()
-
-	getAllOutputs := func(out <-chan *jq.Jv) []*jq.Jv {
-		var outputs []*jq.Jv
-		for jv := range out {
-			outputs = append(outputs, jv)
-		}
-		return outputs
+	if len(errs) > 0 {
+		t.Errorf("Expected no errors, but got %#v", errs)
 	}
-
-	in <- input
-	close(in)
-
-	outputs := getAllOutputs(out)
 
 	if l := len(outputs); l != 1 {
 		t.Errorf("Got %d outputs (%#v), expected %d", l, outputs, 1)
 	} else if val := outputs[0].ToGoVal(); val != 123 {
 		t.Errorf("Got %#v, expected %#v", val, 123)
 	}
+}
 
+func TestJqRuntimeError(t *testing.T) {
+	state, err := jq.New()
+
+	if err != nil {
+		t.Errorf("Error initializing state_state: %v", err)
+	}
+	defer state.Close()
+
+	input, err := jq.JvFromJSONString(`{"a": 123}`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	cIn, cOut, cErrs := state.Start(".[0]")
+	_, errors := feedJq(input, cIn, cOut, cErrs)
+
+	if l := len(errors); l != 1 {
+		t.Errorf("Got %d errors (%#v), expected %d", l, errors, 1)
+	}
 }

@@ -34,8 +34,7 @@ import (
 
 // Jq encapsulates the state needed to interface with the libjq C library
 type Jq struct {
-	_state       *C.struct_jq_state
-	errorChannel chan error
+	_state *C.struct_jq_state
 }
 
 // New initializes a new JQ object and the underlying C library.
@@ -115,7 +114,7 @@ func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan 
 			}
 		} else {
 			for jv := range cIn {
-				jq._Execute(jv, cOut, jq.errorChannel)
+				jq._Execute(jv, cOut, cErr)
 			}
 		}
 		// Once we've read all the inputs close the output to signal to caller that
