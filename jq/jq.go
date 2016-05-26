@@ -70,13 +70,13 @@ func (jq *Jq) Close() {
 }
 
 // We cant pass many things over the Go/C boundary, so instead of passing the error channel we pass an opaque indentifier (a 64bit int as it turns out) and use that to look up in a global variable
-type globalErrorChannelsState struct {
+type errorLookupState struct {
 	sync.RWMutex
 	idCounter uint64
 	channels  map[uint64]chan<- error
 }
 
-func (e *globalErrorChannelsState) Add(c chan<- error) uint64 {
+func (e *errorLookupState) Add(c chan<- error) uint64 {
 	newID := atomic.AddUint64(&e.idCounter, 1)
 	e.RWMutex.Lock()
 	defer e.RWMutex.Unlock()
@@ -84,7 +84,7 @@ func (e *globalErrorChannelsState) Add(c chan<- error) uint64 {
 	return newID
 }
 
-func (e *globalErrorChannelsState) Get(id uint64) chan<- error {
+func (e *errorLookupState) Get(id uint64) chan<- error {
 	e.RWMutex.RLock()
 	defer e.RWMutex.RUnlock()
 	c, ok := e.channels[id]
@@ -94,7 +94,7 @@ func (e *globalErrorChannelsState) Get(id uint64) chan<- error {
 	return c
 }
 
-func (e *globalErrorChannelsState) Delete(id uint64) {
+func (e *errorLookupState) Delete(id uint64) {
 	e.RWMutex.Lock()
 	defer e.RWMutex.Unlock()
 	delete(e.channels, id)
