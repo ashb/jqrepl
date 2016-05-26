@@ -65,3 +65,17 @@ func TestJvFromJSONString(t *testing.T) {
 	is.Err(err)
 	is.Nil(jv)
 }
+
+func TestJvDump(t *testing.T) {
+	is := is.New(t)
+
+	jv := jq.JvFromString("test")
+	defer jv.Free()
+
+	dump := jv.Copy().Dump(jq.JvPrintNone)
+
+	is.Equal(`"test"`, dump)
+	dump = jv.Copy().Dump(jq.JvPrintColour)
+
+	is.Equal([]byte("\x1b[0;32m"+`"test"`+"\x1b[0m"), []byte(dump))
+}

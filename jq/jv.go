@@ -198,3 +198,29 @@ func (jv *Jv) ToGoVal() interface{} {
 		panic(fmt.Sprintf("Unknown JV kind %d", kind))
 	}
 }
+
+type JvPrintFlags int
+
+const (
+	JvPrintNone     JvPrintFlags = 0                   // None of the below
+	JvPrintPretty   JvPrintFlags = C.JV_PRINT_PRETTY   // Print across multiple lines
+	JvPrintAscii    JvPrintFlags = C.JV_PRINT_ASCII    // Escape non-ascii printable characters
+	JvPrintColour   JvPrintFlags = C.JV_PRINT_COLOUR   // Include ANSI color escapes based on data types
+	JvPrintSorted   JvPrintFlags = C.JV_PRINT_SORTED   // Sort output keys
+	JvPrintInvalid  JvPrintFlags = C.JV_PRINT_INVALID  // Print invalid as "<invalid>"
+	JvPrintRefCount JvPrintFlags = C.JV_PRINT_REFCOUNT // Display refcount of objects in in parenthesis
+	JvPrintTab      JvPrintFlags = C.JV_PRINT_TAB      // Indent with tabs,
+	JvPrintIsATty   JvPrintFlags = C.JV_PRINT_ISATTY   //
+	JvPrintSpace0   JvPrintFlags = C.JV_PRINT_SPACE0   // Indent with zero extra chars beyond the parent bracket
+	JvPrintSpace1   JvPrintFlags = C.JV_PRINT_SPACE1   // Indent with zero extra chars beyond the parent bracket
+	JvPrintSpace2   JvPrintFlags = C.JV_PRINT_SPACE2   // Indent with zero extra chars beyond the parent bracket
+)
+
+// Dump produces a human readable version of the string with the requested formatting.
+//
+// Consumes the invocant
+func (jv *Jv) Dump(flags JvPrintFlags) string {
+	jv_str := Jv{C.jv_dump_string(jv.jv, C.int(flags))}
+	defer jv_str.Free()
+	return jv_str._string()
+}
