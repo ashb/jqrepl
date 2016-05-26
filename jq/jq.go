@@ -24,17 +24,21 @@ $ make install-libLTLIBRARIES install-includeHEADERS
 
 #include <stdlib.h>
 
-void install_jq_error_cb(jq_state *jq, void* go_jq);
+void install_jq_error_cb(jq_state *jq, unsigned long long id);
 */
 import "C"
 import (
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
 // Jq encapsulates the state needed to interface with the libjq C library
 type Jq struct {
-	_state *C.struct_jq_state
+	_state       *C.struct_jq_state
+	errorStoreId uint64
 }
 
 // New initializes a new JQ object and the underlying C library.
@@ -59,11 +63,52 @@ func (jq *Jq) Close() {
 		C.jq_teardown(&jq._state)
 		jq._state = nil
 	}
+	if jq.errorStoreId != 0 {
+		globalErrorChannels.Delete(jq.errorStoreId)
+		jq.errorStoreId = 0
+	}
+}
+
+// We cant pass many things over the Go/C boundary, so instead of passing the error channel we pass an opaque indentifier (a 64bit int as it turns out) and use that to look up in a global variable
+type globalErrorChannelsState struct {
+	sync.RWMutex
+	idCounter uint64
+	channels  map[uint64]chan<- error
+}
+
+func (e *globalErrorChannelsState) Add(c chan<- error) uint64 {
+	newID := atomic.AddUint64(&e.idCounter, 1)
+	e.RWMutex.Lock()
+	defer e.RWMutex.Unlock()
+	e.channels[newID] = c
+	return newID
+}
+
+func (e *globalErrorChannelsState) Get(id uint64) chan<- error {
+	e.RWMutex.RLock()
+	defer e.RWMutex.RUnlock()
+	c, ok := e.channels[id]
+	if !ok {
+		panic(fmt.Sprintf("Tried to get error channel #%d out of store but it wasn't there!", id))
+	}
+	return c
+}
+
+func (e *globalErrorChannelsState) Delete(id uint64) {
+	e.RWMutex.Lock()
+	defer e.RWMutex.Unlock()
+	delete(e.channels, id)
+}
+
+// The global state - this also serves to keep the channel in scope by keeping
+// a reference to it that the GC can see
+var globalErrorChannels = errorLookupState{
+	channels: make(map[uint64]chan<- error),
 }
 
 //export goLibjqErrorHandler
-func goLibjqErrorHandler(data unsafe.Pointer, jv C.jv) {
-	ch := *(*chan<- error)(data)
+func goLibjqErrorHandler(id uint64, jv C.jv) {
+	ch := globalErrorChannels.Get(id)
 
 	err := _ConvertError(jv)
 	ch <- err
@@ -97,11 +142,12 @@ func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan 
 	in = cIn
 	out = cOut
 	errs = cErr
+	jq.errorStoreId = globalErrorChannels.Add(cErr)
 
 	// Because we can't pass a function pointer to an exported Go func we have to
 	// call a C function which uses the exported fund for us.
 	// https://github.com/golang/go/wiki/cgo#function-variables
-	C.install_jq_error_cb(jq._state, unsafe.Pointer(&cErr))
+	C.install_jq_error_cb(jq._state, C.ulonglong(jq.errorStoreId))
 
 	go func() {
 		if jq._Compile(program) == false {
@@ -121,7 +167,7 @@ func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan 
 		// we are done.
 		close(cOut)
 		close(cErr)
-		C.install_jq_error_cb(jq._state, nil)
+		C.install_jq_error_cb(jq._state, 0)
 	}()
 
 	return

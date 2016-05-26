@@ -3,12 +3,12 @@
 #include <jv.h>
 #include <jq.h>
 
-extern void goLibjqErrorHandler(void*, jv);
+#include "_cgo_export.h"
 
 static inline void callGoErrorHandler(void *data, jv it) {
-	goLibjqErrorHandler(data, it);
+	goLibjqErrorHandler((GoUint64)data, it);
 }
 
-void install_jq_error_cb(jq_state *jq, void* go_jq) {
-	jq_set_error_cb(jq, callGoErrorHandler, go_jq);
+void install_jq_error_cb(jq_state *jq, GoUint64 id) {
+	jq_set_error_cb(jq, callGoErrorHandler, (void*)id);
 }
