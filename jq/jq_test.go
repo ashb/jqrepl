@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ashb/jq-repl/jq"
+	"github.com/ashb/jqrepl/jq"
 )
 
 func TestJqNewClose(t *testing.T) {

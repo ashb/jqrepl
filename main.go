@@ -1,10 +1,12 @@
+// +build ignore
+
 package main
 
 import (
 	"fmt"
 	"io"
 
-	"github.com/ashb/jq-repl/jq"
+	"github.com/ashb/jqrepl/jq"
 
 	"gopkg.in/chzyer/readline.v1"
 )

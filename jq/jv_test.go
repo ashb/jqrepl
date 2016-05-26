@@ -3,7 +3,7 @@ package jq_test
 import (
 	"testing"
 
-	"github.com/ashb/jq-repl/jq"
+	"github.com/ashb/jqrepl/jq"
 	"github.com/cheekybits/is"
 )
 
