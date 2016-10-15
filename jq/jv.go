@@ -106,6 +106,17 @@ func JvFromJSONString(str string) (*Jv, error) {
 	return &Jv{jv}, nil
 }
 
+// JvFromJSONBytes takes a utf-8 byte sequence containing JSON and returns the
+// jv representation of it.
+func JvFromJSONBytes(b []byte) (*Jv, error) {
+	jv := C.jv_parse((*C.char)(unsafe.Pointer(&b[0])))
+
+	if C.jv_is_valid(jv) == 0 {
+		return nil, _ConvertError(jv)
+	}
+	return &Jv{jv}, nil
+}
+
 // Free this reference to a Jv value.
 //
 // Don't call this more than once per jv - might not actually free the memory
