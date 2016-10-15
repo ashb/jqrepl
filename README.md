@@ -30,34 +30,29 @@ that way. Somehow it got suggested that a REPL for JQ would be the right tool
 for this job - and thus the seed for this tool was planted. (P.S. Samir and
 James: this is all your fault for egging me on)
 
-
 ## Does it work?
 
-**No**, not yet. I'm working on it slowly.
+**Sort of**. I'm working on it slowly.
 
 I am using this project as excuse and reason to learn Go so it will take me a
 while to get it functional and bug free. And then even longer so that other
 pepole can use it.
 
-## What might it look like?
 
-I'm glad you asked. Think of it like ipython or pry, but for JQ. The exact
-user interface might change but right now I'm thinking something like this
-(using the same example of the `aws` command which was not instant to return
-it's data):
+## What's the current state?
 
 ```
 $ aws ec2 describe-images | jq-repl
- In[1]: type
-Out[1]: "object"
+  0 » type
+"object"
 
- In[2]: . | keys
-Out[2]: [
+  1 » keys
+[
     "Images"
 ]
 
- In[3]: .Images[0]
-Out[3]: {
+  2 » .Images[0]
+: {
   "VirtualizationType": "hvm",
   "Name": "leader 2015-11-05T16-50-35Z",
   "Tags": [
@@ -92,6 +87,8 @@ Out[3]: {
 }
 ```
 
+## What is still to come?
+
 So far all fairly mundane. This is where I think things start to get
 interesting - you will be able to refer back to previous results. (I'm not
 sure the exact syntax by which I get this into JQ, so syntax for this is TBD)
@@ -100,6 +97,16 @@ sure the exact syntax by which I get this into JQ, so syntax for this is TBD)
  In[4]: Out[3] | .Name
 Out[4]: "leader 2015-11-05T16-50-35Z"
 ```
+
+## Current status
+
+ - [x] Accept JSON input on stdin
+ - [ ] Accept JSON input from a file
+ - [ ] Sepcify a command to run to get input
+ - [ ] Be able to re-execute command to refresh input
+ - [ ] Autocompletion
+ - [ ] Refer to previous results
+ - [ ] Build up complex filters by refering to previous results.
 
 # Building it
 
@@ -117,7 +124,7 @@ It doesn't do much of anything yet. But to build it you will need to do
 something like this:
 
 ```bash
-curl -fL //github.com/stedolan/jq/releases/download/jq-1.5/jq-1.5.tar.gz | tar -zx
+curl -fL https://github.com/stedolan/jq/releases/download/jq-1.5/jq-1.5.tar.gz | tar -zx
 cd jq-1.5
 ./configure --disable-maintainer-mode --prefix=$PWD/BUILD
 # We could run `make install` but we only actually need these components.
