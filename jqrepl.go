@@ -9,6 +9,9 @@ import (
 	"gopkg.in/chzyer/readline.v1"
 )
 
+const promptTemplate = "\033[0;36m%3d »\033[0m "
+const outputTemplate = "\033[0;34m$out[%d]\033[0m = %s\n\n"
+
 var (
 	jvStringName, jvStringValue, jvStringOut, jvStringUnderscore, jvStringDunderscore *jq.Jv
 )
@@ -43,7 +46,7 @@ func StdinIsTTY() bool {
 // on unix) to be able to run in interactive mode
 func New() (*JqRepl, error) {
 	repl := JqRepl{
-		promptTemplate: "\033[0;36m%3d »\033[0m ",
+		promptTemplate: promptTemplate,
 	}
 
 	cfg, err := repl.readlineReplConfig()
@@ -149,7 +152,7 @@ func (repl *JqRepl) Error(err error) {
 }
 
 func (repl *JqRepl) Output(o *jq.Jv) {
-	fmt.Fprintln(repl.reader.Stdout(), o.Dump(jq.JvPrintPretty|jq.JvPrintSpace1|jq.JvPrintColour))
+	fmt.Fprintf(repl.reader.Stdout(), outputTemplate, repl.programCounter, o.Dump(jq.JvPrintPretty|jq.JvPrintSpace1|jq.JvPrintColour))
 }
 
 func (repl *JqRepl) RunProgram(program string) {
