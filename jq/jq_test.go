@@ -60,7 +60,7 @@ func TestJqCompileError(t *testing.T) {
 	defer state.Close()
 
 	const program = "a b"
-	cIn, cOut, cErr := state.Start(program)
+	cIn, cOut, cErr := state.Start(program, jq.JvArray())
 	_, errors := feedJq(nil, cIn, cOut, cErr)
 
 	// JQ might (and currently does) report multiple errors. One of them will
@@ -95,7 +95,7 @@ func TestJqSimpleProgram(t *testing.T) {
 		t.Error(err)
 	}
 
-	cIn, cOut, cErrs := state.Start(".a")
+	cIn, cOut, cErrs := state.Start(".a", jq.JvArray())
 	outputs, errs := feedJq(input, cIn, cOut, cErrs)
 
 	if len(errs) > 0 {
@@ -122,7 +122,7 @@ func TestJqRuntimeError(t *testing.T) {
 		t.Error(err)
 	}
 
-	cIn, cOut, cErrs := state.Start(".[0]")
+	cIn, cOut, cErrs := state.Start(".[0]", jq.JvArray())
 	_, errors := feedJq(input, cIn, cOut, cErrs)
 
 	if l := len(errors); l != 1 {
