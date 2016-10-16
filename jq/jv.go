@@ -235,3 +235,49 @@ func (jv *Jv) Dump(flags JvPrintFlags) string {
 	defer jv_str.Free()
 	return jv_str._string()
 }
+
+// JvArray creates a new, empty array-typed JV
+func JvArray() *Jv {
+	return &Jv{C.jv_array()}
+}
+
+// ArrayAppend appends a single value to the end of the array.
+//
+// If jv is not an array this will cause an assertion.
+//
+// Consumes the invocant
+func (jv *Jv) ArrayAppend(val *Jv) *Jv {
+	return &Jv{C.jv_array_append(jv.jv, val.jv)}
+}
+
+// ArrayLength returns the number of elements in the array.
+//
+// Consumes the invocant
+func (jv *Jv) ArrayLength() int {
+	return int(C.jv_array_length(jv.jv))
+}
+
+// ArrayGet returns the element at the given array index.
+//
+// If the index is out of bounds it will return an Invalid Jv object (with no
+// error message set).
+//
+// `idx` cannot be negative.
+//
+// Consumes the invocant
+func (jv *Jv) ArrayGet(idx int) *Jv {
+	return &Jv{C.jv_array_get(jv.jv, C.int(idx))}
+}
+
+func JvObject() *Jv {
+	return &Jv{C.jv_object()}
+}
+
+// ObjectSet will add val to the object under the given key.
+//
+// This is the equivalent of `jv[key] = val`.
+//
+// Consumes invocant and both key and val
+func (jv *Jv) ObjectSet(key *Jv, val *Jv) *Jv {
+	return &Jv{C.jv_object_set(jv.jv, key.jv, val.jv)}
+}

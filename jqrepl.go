@@ -9,12 +9,28 @@ import (
 	"gopkg.in/chzyer/readline.v1"
 )
 
+var (
+	jvStringName, jvStringValue, jvStringOut, jvStringUnderscore, jvStringDunderscore *jq.Jv
+)
+
+func init() {
+	// Pre-create thre jv_string objects that we will use over and over again.
+	jvStringName = jq.JvFromString("name")
+	jvStringValue = jq.JvFromString("value")
+	jvStringOut = jq.JvFromString("out")
+	jvStringUnderscore = jq.JvFromString("_")
+	jvStringDunderscore = jq.JvFromString("__")
+}
+
 type JqRepl struct {
 	programCounter int
 	promptTemplate string
 	reader         *readline.Instance
 	libJq          *jq.Jq
 	input          *jq.Jv
+
+	// a jv array of previous outputs
+	results *jq.Jv
 }
 
 func StdinIsTTY() bool {
@@ -45,6 +61,8 @@ func New() (*JqRepl, error) {
 		repl.reader.Close()
 		return nil, err
 	}
+
+	repl.results = jq.JvArray()
 
 	return &repl, nil
 }
@@ -122,7 +140,6 @@ func (repl *JqRepl) Loop() {
 			panic(fmt.Errorf("%#v", err))
 		}
 
-		repl.programCounter++
 		repl.RunProgram(line)
 	}
 }
@@ -136,7 +153,8 @@ func (repl *JqRepl) Output(o *jq.Jv) {
 }
 
 func (repl *JqRepl) RunProgram(program string) {
-	chanIn, chanOut, chanErr := repl.libJq.Start(program)
+	args := makeProgramArgs(repl.results.Copy())
+	chanIn, chanOut, chanErr := repl.libJq.Start(program, args)
 	inCopy := repl.JvInput().Copy()
 
 	// Run until the channels are closed
@@ -147,12 +165,17 @@ func (repl *JqRepl) RunProgram(program string) {
 				chanErr = nil
 			} else {
 				repl.Error(e)
+
 			}
 		case o, ok := <-chanOut:
 			if !ok {
 				chanOut = nil
 			} else {
+				// Store the result in the history
+				repl.results = repl.results.ArrayAppend(o.Copy())
+
 				repl.Output(o)
+				repl.programCounter++
 			}
 		case chanIn <- inCopy:
 			// We've sent our input, close the channel to tell Jq we're done
@@ -160,4 +183,29 @@ func (repl *JqRepl) RunProgram(program string) {
 			chanIn = nil
 		}
 	}
+}
+
+func makeProgramArgs(history *jq.Jv) *jq.Jv {
+	// Create this structure:
+	// programArgs = [
+	//		{"name": "out", "value": history },
+	//    {"name": "_", "value": history[-1] },
+	//    {"name": "__", "value": history[-2] },
+	// ]
+
+	arg := jq.JvObject().ObjectSet(jvStringName.Copy(), jvStringOut.Copy()).ObjectSet(jvStringValue.Copy(), history.Copy())
+	res := jq.JvArray().ArrayAppend(arg)
+
+	len := history.Copy().ArrayLength()
+
+	if len >= 1 {
+		arg = jq.JvObject().ObjectSet(jvStringName.Copy(), jvStringUnderscore.Copy()).ObjectSet(jvStringValue.Copy(), history.Copy().ArrayGet(len-1))
+		res = res.ArrayAppend(arg)
+	}
+	if len >= 2 {
+		arg = jq.JvObject().ObjectSet(jvStringName.Copy(), jvStringDunderscore.Copy()).ObjectSet(jvStringValue.Copy(), history.Copy().ArrayGet(len-2))
+		res = res.ArrayAppend(arg)
+	}
+
+	return res
 }

@@ -1,5 +1,3 @@
-// +build jqrepl
-
 package main
 
 import (

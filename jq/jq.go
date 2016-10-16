@@ -120,6 +120,12 @@ func goLibjqErrorHandler(id uint64, jv C.jv) {
 // error values sent to the error channel. When you are done sending values
 // close the input channel.
 //
+// args is a list of key/value pairs to bind as variables into the program, and
+// must be an array type even if empty. Each element of the array should be an
+// object with a "name" and "value" properties. Name should exclude the "$"
+// sign. For example this is `[ {"name": "n", "value": 1 } ]` would then be
+// `$n` in the programm.
+//
 // This function is not reentereant -- in that you cannot and should not call
 // Start again until you have closed the previous input channel.
 //
@@ -130,8 +136,7 @@ func goLibjqErrorHandler(id uint64, jv C.jv) {
 // Any jq.Jv* values passed to the input channel will be owned by the channel.
 // If you want to keep them afterwards ensure you Copy() them before passing to
 // the channel
-func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan error) {
-
+func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, errs <-chan error) {
 	// Create out two way copy of the channels. We need to be able to recv from
 	// input, so need to store the original channel
 	cIn := make(chan *Jv)
@@ -142,6 +147,23 @@ func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan 
 	in = cIn
 	out = cOut
 	errs = cErr
+
+	// Before setting up any of the global error handling state, lets check that
+	// args is of the right type!
+	if args.Kind() != JV_KIND_ARRAY {
+		go func() {
+			// Take ownership of the inputs
+			for jv := range cIn {
+				jv.Free()
+			}
+			cErr <- fmt.Errorf("`args` parameter is of type %s not array!", args.Kind().String())
+			args.Free()
+			close(cOut)
+			close(cErr)
+		}()
+		return
+	}
+
 	jq.errorStoreId = globalErrorChannels.Add(cErr)
 
 	// Because we can't pass a function pointer to an exported Go func we have to
@@ -150,7 +172,8 @@ func (jq *Jq) Start(program string) (in chan<- *Jv, out <-chan *Jv, errs <-chan 
 	C.install_jq_error_cb(jq._state, C.ulonglong(jq.errorStoreId))
 
 	go func() {
-		if jq._Compile(program) == false {
+
+		if jq._Compile(program, args) == false {
 			// Even if compile failed follow the contract. Read any inputs and take
 			// ownership of them (aka free them)
 			//
@@ -197,11 +220,11 @@ func (jq *Jq) _Execute(jv *Jv, out chan<- *Jv, err chan<- error) {
 	}
 }
 
-func (jq *Jq) _Compile(prog string) bool {
+func (jq *Jq) _Compile(prog string, args *Jv) bool {
 	cs := C.CString(prog)
 	defer C.free(unsafe.Pointer(cs))
 
-	compiled := C.jq_compile(jq._state, cs) != 0
+	compiled := C.jq_compile_args(jq._state, cs, args.jv) != 0
 	// If there was an error it will have been sent to errorChannel
 	return compiled
 }
