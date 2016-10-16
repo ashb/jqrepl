@@ -76,6 +76,20 @@ func JvNull() *Jv {
 	return &Jv{C.jv_null()}
 }
 
+// JvInvalid returns an invalid jv object without an error property
+func JvInvalid() *Jv {
+	return &Jv{C.jv_invalid()}
+}
+
+// JvInvalidWithMessage creates an "invalid" jv with the given error message.
+//
+// msg can be a string or an object
+//
+// Consumes `msg`
+func JvInvalidWithMessage(msg *Jv) *Jv {
+	return &Jv{C.jv_invalid_with_msg(msg.jv)}
+}
+
 // JvFromString returns a new jv string-typed value containing the given go
 // string.
 func JvFromString(str string) *Jv {
@@ -151,10 +165,25 @@ func (jv *Jv) IsValid() bool {
 	return C.jv_is_valid(jv.jv) != 0
 }
 
-// GetInvalidMessage gets the error message for this Jv. If there is none it
-// will return a jv NULL value (not a go nil value).
+// GetInvalidMessageAsString gets the error message for this Jv. If there is none it
+// will return ("", false). Otherwise it will return the message as a string and true,
+// converting non-string values if necessary. If you want the message in it's
+// native Jv type use `GetInvalidMessage()`
 //
 // Consumes the invocant.
+func (jv *Jv) GetInvalidMessageAsString() (string, bool) {
+	msg := C.jv_invalid_get_msg(jv.jv)
+	defer C.jv_free(msg)
+
+	if C.jv_get_kind(msg) == C.JV_KIND_NULL {
+		return "", false
+	} else if C.jv_get_kind(msg) != C.JV_KIND_STRING {
+		msg = C.jv_dump_string(msg, 0)
+	}
+	return C.GoString(C.jv_string_value(msg)), true
+}
+
+// GetInvalidMessage returns the message associcated
 func (jv *Jv) GetInvalidMessage() *Jv {
 	return &Jv{C.jv_invalid_get_msg(jv.jv)}
 }

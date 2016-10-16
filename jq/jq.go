@@ -206,17 +206,11 @@ func (jq *Jq) _Execute(jv *Jv, out chan<- *Jv, err chan<- error) {
 		out <- result
 		result = &Jv{C.jq_next(jq._state)}
 	}
-	if msg := result.GetInvalidMessage(); msg.Kind() != JV_KIND_NULL {
+	msg, ok := result.GetInvalidMessageAsString()
+	if ok {
 		// Uncaught jq exception
 		// TODO: get file:line position in input somehow.
-		if msg.Kind() == JV_KIND_STRING {
-			defer msg.Free()
-			err <- errors.New(msg._string())
-		} else {
-			msg := Jv{C.jv_dump_string(msg.jv, 0)}
-			defer msg.Free()
-			err <- errors.New(msg._string())
-		}
+		err <- errors.New(msg)
 	}
 }
 

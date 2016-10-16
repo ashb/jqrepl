@@ -79,3 +79,50 @@ func TestJvDump(t *testing.T) {
 
 	is.Equal([]byte("\x1b[0;32m"+`"test"`+"\x1b[0m"), []byte(dump))
 }
+
+func TestJvInvalid(t *testing.T) {
+	is := is.New(t)
+
+	jv := jq.JvInvalid()
+
+	is.False(jv.IsValid())
+
+	_, ok := jv.Copy().GetInvalidMessageAsString()
+	is.False(ok) // "Expected no Invalid message"
+
+	jv = jv.GetInvalidMessage()
+	is.Equal(jv.Kind(), jq.JV_KIND_NULL)
+}
+
+func TestJvInvalidWithMessage_string(t *testing.T) {
+	is := is.New(t)
+
+	jv := jq.JvInvalidWithMessage(jq.JvFromString("Error message 1"))
+
+	is.False(jv.IsValid())
+
+	msg := jv.Copy().GetInvalidMessage()
+	is.Equal(msg.Kind(), jq.JV_KIND_STRING)
+	msg.Free()
+
+	str, ok := jv.GetInvalidMessageAsString()
+	is.True(ok)
+	is.Equal("Error message 1", str)
+}
+
+func TestJvInvalidWithMessage_object(t *testing.T) {
+	is := is.New(t)
+
+	jv := jq.JvInvalidWithMessage(jq.JvObject())
+
+	is.False(jv.IsValid())
+
+	msg := jv.Copy().GetInvalidMessage()
+	is.Equal(msg.Kind(), jq.JV_KIND_OBJECT)
+	msg.Free()
+
+	str, ok := jv.GetInvalidMessageAsString()
+	is.True(ok)
+	is.Equal("{}", str)
+
+}
