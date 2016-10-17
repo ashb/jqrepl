@@ -1,0 +1,11 @@
+dependencies:
+  cache_directories:
+    - jq-1.5
+  pre:
+    - |
+      if [[ ! -d jq-1.5/BUILD ]]; then
+        curl -L -fsS https://github.com/stedolan/jq/releases/download/jq-1.5/jq-1.5.tar.gz | tar -xz
+        cd jq-1.5
+        ./configure --disable-maintainer-mode --prefix=$PWD/BUILD
+        make install-libLTLIBRARIES install-includeHEADERS
+      fi
