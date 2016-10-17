@@ -9,3 +9,7 @@ dependencies:
         ./configure --disable-maintainer-mode --prefix=$PWD/BUILD
         make install-libLTLIBRARIES install-includeHEADERS
       fi
+test:
+  post:
+    - go build -v cmd/jqrepl.go
+    - mv jqrepl $CIRCLE_ARTIFACTS/jqrepl
