@@ -66,6 +66,88 @@ func TestJvFromJSONString(t *testing.T) {
 	is.Nil(jv)
 }
 
+func TestJvFromFloat(t *testing.T) {
+	is := is.New(t)
+
+	jv := jq.JvFromFloat(1.23)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_NUMBER)
+	gv := jv.ToGoVal()
+	n, ok := gv.(float64)
+	is.True(ok)
+	is.Equal(n, float64(1.23))
+}
+
+func TestJvFromInterface(t *testing.T) {
+	is := is.New(t)
+
+	// Null
+	jv, err := jq.JvFromInterface(nil)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_NULL)
+
+	// Boolean
+	jv, err = jq.JvFromInterface(true)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_TRUE)
+
+	jv, err = jq.JvFromInterface(false)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_FALSE)
+
+	// Float
+	jv, err = jq.JvFromInterface(1.23)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_NUMBER)
+	gv := jv.ToGoVal()
+	n, ok := gv.(float64)
+	is.True(ok)
+	is.Equal(n, float64(1.23))
+
+	// Integer
+	jv, err = jq.JvFromInterface(456)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_NUMBER)
+	gv = jv.ToGoVal()
+	n2, ok := gv.(int)
+	is.True(ok)
+	is.Equal(n2, 456)
+
+	// String
+	jv, err = jq.JvFromInterface("test")
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_STRING)
+	gv = jv.ToGoVal()
+	s, ok := gv.(string)
+	is.True(ok)
+	is.Equal(s, "test")
+
+	jv, err = jq.JvFromInterface([]string{"test", "one", "two"})
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_ARRAY)
+	is.Equal(jv.Copy().ArrayLength(), 3)
+	pos2 := jv.Copy().ArrayGet(2)
+	is.OK(pos2)
+	is.Equal(pos2.Kind(), jq.JV_KIND_STRING)
+	gv = pos2.ToGoVal()
+	s, ok = gv.(string)
+	is.True(ok)
+	is.Equal(s, "two")
+
+	jv, err = jq.JvFromInterface(map[string]int{"one": 1, "two": 2})
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_OBJECT)
+	t.Log(jv.Copy().Dump(jq.JvPrintPretty | jq.JvPrintColour))
+}
+
 func TestJvDump(t *testing.T) {
 	is := is.New(t)
 

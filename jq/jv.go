@@ -13,6 +13,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"unsafe"
 )
 
@@ -98,7 +99,97 @@ func JvFromString(str string) *Jv {
 	return &Jv{C.jv_string_sized(cs, C.int(len(str)))}
 }
 
-// Covert a JQ error stored in a JV error to a native go error
+// JvFromFloat returns a new jv number-typed value containing the given float
+// value.
+func JvFromFloat(n float64) *Jv {
+	return &Jv{C.jv_number(C.double(n))}
+}
+
+// JvFromBool returns a new jv of "true" or "false" kind depending on the given
+// boolean value
+func JvFromBool(b bool) *Jv {
+	if b {
+		return &Jv{C.jv_true()}
+	} else {
+		return &Jv{C.jv_false()}
+	}
+}
+
+func jvFromArray(val reflect.Value) (*Jv, error) {
+	len := val.Len()
+	ret := &Jv{C.jv_array_sized(C.int(len))}
+	for i := 0; i < len; i++ {
+		newjv, err := JvFromInterface(
+			val.Index(i).Interface(),
+		)
+		if err != nil {
+			// TODO: error context
+			ret.Free()
+			return nil, err
+		}
+		ret = &Jv{C.jv_array_set(ret.jv, C.int(i), newjv.jv)}
+	}
+	return ret, nil
+}
+
+func jvFromMap(val reflect.Value) (*Jv, error) {
+	keys := val.MapKeys()
+	ret := JvObject()
+
+	for _, key := range keys {
+		keyjv := JvFromString(key.String())
+		valjv, err := JvFromInterface(val.MapIndex(key).Interface())
+		if err != nil {
+			// TODO: error context
+			keyjv.Free()
+			ret.Free()
+			return nil, err
+		}
+		ret = ret.ObjectSet(keyjv, valjv)
+	}
+
+	return ret, nil
+}
+
+func JvFromInterface(intf interface{}) (*Jv, error) {
+	if intf == nil {
+		return JvNull(), nil
+	}
+
+	switch x := intf.(type) {
+	case float32:
+		return JvFromFloat(float64(x)), nil
+	case float64:
+		return JvFromFloat(x), nil
+	case int:
+		return JvFromFloat(float64(x)), nil
+	case int32:
+		return JvFromFloat(float64(x)), nil
+	case uint32:
+		return JvFromFloat(float64(x)), nil
+	case int64:
+		return JvFromFloat(float64(x)), nil
+	case uint64:
+		return JvFromFloat(float64(x)), nil
+	case string:
+		return JvFromString(x), nil
+	case []byte:
+		return JvFromString(string(x)), nil
+	case bool:
+		return JvFromBool(x), nil
+	}
+
+	val := reflect.ValueOf(intf)
+	switch val.Kind() {
+	case reflect.Array, reflect.Slice:
+		return jvFromArray(val)
+	case reflect.Map:
+		return jvFromMap(val)
+	default:
+		return nil, errors.New("JvFromInterface can't handle " + val.Kind().String())
+	}
+}
+
 func _ConvertError(inv C.jv) error {
 	// We might want to not call this as it prefixes things with "jq: "
 	jv := &Jv{C.jq_format_error(inv)}
