@@ -16,8 +16,7 @@ $ make install-libLTLIBRARIES install-includeHEADERS
 */
 
 /*
-#cgo CFLAGS: -I ${SRCDIR}/../jq-1.5/BUILD/include
-#cgo LDFLAGS: ${SRCDIR}/../jq-1.5/BUILD/lib/libjq.a
+#cgo LDFLAGS: -ljq
 #cgo linux LDFLAGS: -lm
 
 
