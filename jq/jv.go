@@ -161,7 +161,17 @@ func JvFromInterface(intf interface{}) (*Jv, error) {
 		return JvFromFloat(float64(x)), nil
 	case float64:
 		return JvFromFloat(x), nil
+	case uint:
+		return JvFromFloat(float64(x)), nil
 	case int:
+		return JvFromFloat(float64(x)), nil
+	case int8:
+		return JvFromFloat(float64(x)), nil
+	case uint8:
+		return JvFromFloat(float64(x)), nil
+	case int16:
+		return JvFromFloat(float64(x)), nil
+	case uint16:
 		return JvFromFloat(float64(x)), nil
 	case int32:
 		return JvFromFloat(float64(x)), nil
