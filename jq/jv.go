@@ -322,9 +322,25 @@ func (jv *Jv) ToGoVal() interface{} {
 	case C.JV_KIND_STRING:
 		return jv._string()
 	case C.JV_KIND_ARRAY:
-		fallthrough
+		len := jv.Copy().ArrayLength()
+		ary := make([]interface{}, len)
+		for i := 0; i < len; i++ {
+			v := jv.Copy().ArrayGet(i)
+			ary[i] = v.ToGoVal()
+			v.Free()
+		}
+		return ary
 	case C.JV_KIND_OBJECT:
-		panic(fmt.Sprintf("ToGoVal not implemented for %#v", kind))
+		obj := make(map[string]interface{})
+		for iter := C.jv_object_iter(jv.jv); C.jv_object_iter_valid(jv.jv, iter) != 0; iter = C.jv_object_iter_next(jv.jv, iter) {
+			k := Jv{C.jv_object_iter_key(jv.jv, iter)}
+			v := Jv{C.jv_object_iter_value(jv.jv, iter)}
+			// jv_object_iter_key already asserts that the kind is string, so using _string is OK here
+			obj[k._string()] = v.ToGoVal()
+			k.Free()
+			v.Free()
+		}
+		return obj
 	default:
 		panic(fmt.Sprintf("Unknown JV kind %d", kind))
 	}

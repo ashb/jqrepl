@@ -132,20 +132,15 @@ func TestJvFromInterface(t *testing.T) {
 	is.NoErr(err)
 	is.OK(jv)
 	is.Equal(jv.Kind(), jq.JV_KIND_ARRAY)
-	is.Equal(jv.Copy().ArrayLength(), 3)
-	pos2 := jv.Copy().ArrayGet(2)
-	is.OK(pos2)
-	is.Equal(pos2.Kind(), jq.JV_KIND_STRING)
-	gv = pos2.ToGoVal()
-	s, ok = gv.(string)
-	is.True(ok)
-	is.Equal(s, "two")
+	gv = jv.ToGoVal()
+	is.Equal(gv.([]interface{})[2], "two")
 
 	jv, err = jq.JvFromInterface(map[string]int{"one": 1, "two": 2})
 	is.NoErr(err)
 	is.OK(jv)
 	is.Equal(jv.Kind(), jq.JV_KIND_OBJECT)
-	t.Log(jv.Copy().Dump(jq.JvPrintPretty | jq.JvPrintColour))
+	gv = jv.ToGoVal()
+	is.Equal(gv.(map[string]interface{})["two"], 2)
 }
 
 func TestJvDump(t *testing.T) {
