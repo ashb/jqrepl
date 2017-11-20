@@ -40,6 +40,7 @@ import (
 type Jq struct {
 	_state       *C.struct_jq_state
 	errorStoreId uint64
+	running      sync.WaitGroup
 }
 
 // New initializes a new JQ object and the underlying C library.
@@ -58,8 +59,15 @@ func New() (*Jq, error) {
 	return jq, nil
 }
 
-// Close the handle to libjq and free C resources
+// Close the handle to libjq and free C resources.
+//
+// If Start() has been called this will block until the input Channel it
+// returns has been closed.
 func (jq *Jq) Close() {
+	// If the goroutine from Start() is running we need to make sure it finished cleanly
+	// Wait until we aren't running before freeing C things.
+	//
+	jq.running.Wait()
 	if jq._state != nil {
 		C.jq_teardown(&jq._state)
 		jq._state = nil
@@ -172,6 +180,7 @@ func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, er
 	// https://github.com/golang/go/wiki/cgo#function-variables
 	C.install_jq_error_cb(jq._state, C.ulonglong(jq.errorStoreId))
 
+	jq.running.Add(1)
 	go func() {
 
 		if jq._Compile(program, args) == false {
@@ -192,6 +201,7 @@ func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, er
 		close(cOut)
 		close(cErr)
 		C.install_jq_error_cb(jq._state, 0)
+		jq.running.Done()
 	}()
 
 	return

@@ -21,6 +21,18 @@ func TestJqNewClose(t *testing.T) {
 
 }
 
+func TestJqCloseRace(t *testing.T) {
+	state, err := jq.New()
+
+	if err != nil {
+		t.Errorf("Error initializing jq_state: %v", err)
+	}
+
+	cIn, _, _ := state.Start(".", jq.JvArray())
+	go state.Close()
+	go close(cIn)
+}
+
 func feedJq(val *jq.Jv, in chan<- *jq.Jv, out <-chan *jq.Jv, errs <-chan error) ([]*jq.Jv, []error) {
 	if val == nil {
 		close(in)
