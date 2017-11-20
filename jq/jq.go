@@ -173,6 +173,10 @@ func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, er
 		return
 	}
 
+	if jq.errorStoreId != 0 {
+		// We might have called Compile
+		globalErrorChannels.Delete(jq.errorStoreId)
+	}
 	jq.errorStoreId = globalErrorChannels.Add(cErr)
 
 	// Because we can't pass a function pointer to an exported Go func we have to
@@ -193,7 +197,13 @@ func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, er
 			}
 		} else {
 			for jv := range cIn {
-				jq._Execute(jv, cOut, cErr)
+				results, err := jq.Execute(jv)
+				for _, result := range results {
+					cOut <- result
+				}
+				if err != nil {
+					cErr <- err
+				}
 			}
 		}
 		// Once we've read all the inputs close the output to signal to caller that
@@ -207,29 +217,91 @@ func (jq *Jq) Start(program string, args *Jv) (in chan<- *Jv, out <-chan *Jv, er
 	return
 }
 
-// Process a single input and send the results on `out`
-func (jq *Jq) _Execute(jv *Jv, out chan<- *Jv, err chan<- error) {
+// Execute will run the Compiled() program against a single input and return
+// the results.
+//
+// Using this interface directly is not thread-safe -- it is up to the caller to
+// ensure that this is not called from two goroutines concurrently.
+func (jq *Jq) Execute(input *Jv) (results []*Jv, err error) {
 	flags := C.int(0)
+	results = make([]*Jv, 0)
 
-	C.jq_start(jq._state, jv.jv, flags)
+	C.jq_start(jq._state, input.jv, flags)
 	result := &Jv{C.jq_next(jq._state)}
 	for result.IsValid() {
-		out <- result
+		results = append(results, result)
 		result = &Jv{C.jq_next(jq._state)}
 	}
 	msg, ok := result.GetInvalidMessageAsString()
 	if ok {
 		// Uncaught jq exception
 		// TODO: get file:line position in input somehow.
-		err <- errors.New(msg)
+		err = errors.New(msg)
 	}
+
+	return
+}
+
+// Compile the program and make it ready to Execute()
+//
+// Only a single program can be compiled on a Jq object at once. Calling this
+// again a second time will replace the current program.
+//
+// args is a list of key/value pairs to bind as variables into the program, and
+// must be an array type even if empty. Each element of the array should be an
+// object with a "name" and "value" properties. Name should exclude the "$"
+// sign. For example this is `[ {"name": "n", "value": 1 } ]` would then be
+// `$n` in the program.
+func (jq *Jq) Compile(prog string, args *Jv) (errs []error) {
+
+	// Before setting up any of the global error handling state, lets check that
+	// args is of the right type!
+	if args.Kind() != JV_KIND_ARRAY {
+		args.Free()
+		return []error{fmt.Errorf("`args` parameter is of type %s not array", args.Kind().String())}
+	}
+
+	cErr := make(chan error)
+
+	if jq.errorStoreId != 0 {
+		// We might have called Compile
+		globalErrorChannels.Delete(jq.errorStoreId)
+	}
+	jq.errorStoreId = globalErrorChannels.Add(cErr)
+
+	C.install_jq_error_cb(jq._state, C.ulonglong(jq.errorStoreId))
+	defer C.install_jq_error_cb(jq._state, 0)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		for err := range cErr {
+			if err == nil {
+				break
+			}
+			errs = append(errs, err)
+		}
+		wg.Done()
+	}()
+
+	compiled := jq._Compile(prog, args)
+	cErr <- nil // Sentinel to break the loop above
+
+	wg.Wait()
+	globalErrorChannels.Delete(jq.errorStoreId)
+	jq.errorStoreId = 0
+
+	if !compiled && len(errs) == 0 {
+		return []error{fmt.Errorf("jq_compile returned error, but no errors were reported. Oops")}
+	}
+	return errs
 }
 
 func (jq *Jq) _Compile(prog string, args *Jv) bool {
 	cs := C.CString(prog)
 	defer C.free(unsafe.Pointer(cs))
 
-	compiled := C.jq_compile_args(jq._state, cs, args.jv) != 0
-	// If there was an error it will have been sent to errorChannel
-	return compiled
+	// If there was an error it will have been sent to errorChannel via the
+	// installed error handler
+	return C.jq_compile_args(jq._state, cs, args.jv) != 0
 }
