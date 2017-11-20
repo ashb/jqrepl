@@ -1,0 +1,83 @@
+version: 2
+jobs:
+  build:
+    working_directory: /go/src/github.com/ashb/jqrepl/
+    environment:
+      CGO_CFLAGS: -I/go/src/github.com/ashb/jqrepl/jq-1.5/BUILD/include
+      CGO_LDFLAGS: -L/go/src/github.com/ashb/jqrepl/jq-1.5/BUILD/lib
+      TEST_RESULTS: /tmp/test-results
+
+    docker:
+      - image: circleci/golang:1.9
+
+    steps:
+      - checkout
+      - run: mkdir -p $TEST_RESULTS
+      - run: go get github.com/jstemmer/go-junit-report
+
+      - run:
+          name: Install dep
+          command: |
+            set -x
+            GOBIN=${GOPATH%%:*}/bin
+            mkdir -p $GOBIN
+            curl -LfsS https://github.com/golang/dep/releases/download/v0.3.2/dep-linux-amd64 > $GOBIN/dep
+            chmod +x $GOBIN/dep
+
+      - restore_cache:
+          name: jq-1.5 build cached
+          key: v1-jq-1.5
+
+      - run:
+          name: Build JQ 1.5
+          command: |
+            if [[ ! -d jq-1.5/BUILD ]]; then
+              curl -L -fsS https://github.com/stedolan/jq/releases/download/jq-1.5/jq-1.5.tar.gz | tar -xz
+              cd jq-1.5
+              ./configure --disable-maintainer-mode --prefix=$PWD/BUILD
+              make install-libLTLIBRARIES install-includeHEADERS
+              # Remove the .so, we want to use the .a for static builds.
+              rm -v BUILD/lib/*.so
+            fi
+      - save_cache:
+          name: Save JQ 1.5 cache
+          paths:
+            - jq-1.5/BUILD
+          key: v1-jq-1.5
+
+      # Download and cache dependencies
+      - restore_cache:
+          name: Restore Go vendor cache
+          keys:
+          - v1-go-dependencies-{{ checksum "Gopkg.lock" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-go-dependencies-
+
+      - run:
+          name: Install Go dependencies
+          command:
+            dep ensure --vendor-only -v
+
+      - save_cache:
+          name: Save Go vendor cache
+          paths:
+            - vendor
+            - /go/pkg/dep
+          key: v1-go-dependencies-{{ checksum "Gopkg.lock" }}
+
+      - run:
+          name: go test
+          command: |
+            trap "go-junit-report <${TEST_RESULTS}/go-test.out > ${TEST_RESULTS}/go-test-report.xml" EXIT
+            go test -v ./... | tee ${TEST_RESULTS}/go-test.out
+
+      - run:
+          name: Build Linux CLI
+          command: go build -v -o /tmp/jqrepl-linux-amd64 ./cmd/jqrepl
+
+      - store_artifacts:
+          path: /tmp/jqrepl-linux-amd64
+          destination: binaries/jqrepl-linux-amd64
+
+      - store_test_results:
+          path: /tmp/test-results

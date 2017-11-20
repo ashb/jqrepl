@@ -1,0 +1,7 @@
+[[constraint]]
+  branch = "master"
+  name = "github.com/cheekybits/is"
+
+[[constraint]]
+  name = "gopkg.in/chzyer/readline.v1"
+  version = "1.4.0"
