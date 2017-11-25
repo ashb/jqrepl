@@ -63,7 +63,7 @@ func feedJq(val *jq.Jv, in chan<- *jq.Jv, out <-chan *jq.Jv, errs <-chan error) 
 	return outputs, errors
 }
 
-func TestJqCompileError(t *testing.T) {
+func TestStartCompileError(t *testing.T) {
 	state, err := jq.New()
 
 	if err != nil {
@@ -94,6 +94,56 @@ func TestJqCompileError(t *testing.T) {
 	t.Fatal("No error containing the program source found")
 }
 
+func TestCompileError(t *testing.T) {
+	state, err := jq.New()
+
+	if err != nil {
+		t.Errorf("Error initializing jq_state: %v", err)
+	}
+	defer state.Close()
+
+	const program = "a b"
+	errors := state.Compile(program, jq.JvArray())
+
+	// JQ might (and currently does) report multiple errors. One of them will
+	// contain our input program. Check for that but don't be overly-specific
+	// about the string or order of errors
+
+	gotErrors := false
+	for _, err := range errors {
+		gotErrors = true
+		if strings.Contains(err.Error(), program) {
+			// t.Pass("Found the error we expected: %#v\n",
+			return
+		}
+	}
+
+	if !gotErrors {
+		t.Fatal("Errors were expected but none seen")
+	}
+	t.Fatal("No error containing the program source found")
+}
+
+func TestCompileGood(t *testing.T) {
+	state, err := jq.New()
+
+	if err != nil {
+		t.Errorf("Error initializing jq_state: %v", err)
+	}
+	defer state.Close()
+
+	const program = "."
+	errors := state.Compile(program, jq.JvArray())
+
+	// JQ might (and currently does) report multiple errors. One of them will
+	// contain our input program. Check for that but don't be overly-specific
+	// about the string or order of errors
+
+	if len(errors) != 0 {
+		t.Fatal("Expected no errors, got", errors)
+	}
+}
+
 func TestJqSimpleProgram(t *testing.T) {
 	state, err := jq.New()
 
@@ -112,6 +162,36 @@ func TestJqSimpleProgram(t *testing.T) {
 
 	if len(errs) > 0 {
 		t.Errorf("Expected no errors, but got %#v", errs)
+	}
+
+	if l := len(outputs); l != 1 {
+		t.Errorf("Got %d outputs (%#v), expected %d", l, outputs, 1)
+	} else if val := outputs[0].ToGoVal(); val != 123 {
+		t.Errorf("Got %#v, expected %#v", val, 123)
+	}
+}
+
+func TestJqNonChannelInterface(t *testing.T) {
+	state, err := jq.New()
+
+	if err != nil {
+		t.Errorf("Error initializing state_state: %v", err)
+	}
+	defer state.Close()
+
+	input, err := jq.JvFromJSONString("{\"a\": 123}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	errs := state.Compile(".a", jq.JvArray())
+	if errs != nil {
+		t.Errorf("Expected no errors, but got %#v", errs)
+	}
+
+	outputs, err := state.Execute(input.Copy())
+	if err != nil {
+		t.Errorf("Expected no error, but got %#v", err)
 	}
 
 	if l := len(outputs); l != 1 {
