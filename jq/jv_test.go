@@ -141,6 +141,20 @@ func TestJvFromInterface(t *testing.T) {
 	is.Equal(jv.Kind(), jq.JV_KIND_OBJECT)
 	gv = jv.ToGoVal()
 	is.Equal(gv.(map[string]interface{})["two"], 2)
+
+	aStruct := struct {
+		One int `json:"one"`
+		Two int `json:"two"`
+	}{
+		One: 1,
+		Two: 2,
+	}
+	jv, err = jq.JvFromInterface(aStruct)
+	is.NoErr(err)
+	is.OK(jv)
+	is.Equal(jv.Kind(), jq.JV_KIND_OBJECT)
+	gv = jv.ToGoVal()
+	is.Equal(gv.(map[string]interface{})["two"], 2)
 }
 
 func TestJvDump(t *testing.T) {
