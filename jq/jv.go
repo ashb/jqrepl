@@ -10,6 +10,7 @@ package jq
 */
 import "C"
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -194,6 +195,12 @@ func JvFromInterface(intf interface{}) (*Jv, error) {
 		return jvFromArray(val)
 	case reflect.Map:
 		return jvFromMap(val)
+	case reflect.Struct:
+		marshalled, err := json.Marshal(val)
+		if err != nil {
+			return nil, err
+		}
+		return JvFromJSONString(string(marshalled))
 	default:
 		return nil, errors.New("JvFromInterface can't handle " + val.Kind().String())
 	}
