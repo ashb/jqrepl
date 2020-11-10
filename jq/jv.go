@@ -219,7 +219,7 @@ func _ConvertError(inv C.jv) error {
 func JvFromJSONString(str string) (*Jv, error) {
 	cs := C.CString(str)
 	defer C.free(unsafe.Pointer(cs))
-	jv := C.jv_parse(cs)
+	jv := C.jv_parse_sized(cs, C.int(len(str)))
 
 	if C.jv_is_valid(jv) == 0 {
 		return nil, _ConvertError(jv)
@@ -230,7 +230,7 @@ func JvFromJSONString(str string) (*Jv, error) {
 // JvFromJSONBytes takes a utf-8 byte sequence containing JSON and returns the
 // jv representation of it.
 func JvFromJSONBytes(b []byte) (*Jv, error) {
-	jv := C.jv_parse((*C.char)(unsafe.Pointer(&b[0])))
+	jv := C.jv_parse_sized((*C.char)(unsafe.Pointer(&b[0])), C.int(len(b)))
 
 	if C.jv_is_valid(jv) == 0 {
 		return nil, _ConvertError(jv)
