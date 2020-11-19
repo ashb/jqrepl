@@ -116,10 +116,10 @@ var globalErrorChannels = errorLookupState{
 }
 
 //export goLibjqErrorHandler
-func goLibjqErrorHandler(id uint64, jv C.jv) {
+func goLibjqErrorHandler(id uint64, value C.jv) {
 	ch := globalErrorChannels.Get(id)
 
-	err := _ConvertError(jv)
+	err := _ConvertError(value)
 	ch <- err
 }
 
