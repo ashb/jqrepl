@@ -196,7 +196,7 @@ func JvFromInterface(intf interface{}) (*Jv, error) {
 	case reflect.Map:
 		return jvFromMap(val)
 	case reflect.Struct:
-		marshalled, err := json.Marshal(val)
+		marshalled, err := json.Marshal(intf)
 		if err != nil {
 			return nil, err
 		}
